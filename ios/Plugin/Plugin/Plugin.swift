@@ -39,9 +39,9 @@ public class FacebookLogin: CAPPlugin {
                 if (loginResult != nil) {
                     
                     if (loginResult?.isCancelled ?? false) {
-                    // print("[CapacitorFacebook] ❌ cancelled");
-                    call.error("cancelled");
-                    return;
+                        // print("[CapacitorFacebook] ❌ cancelled");
+                        call.success([:]);
+                        return;
                     }
                     
                     self.granted = loginResult?.grantedPermissions.map({ (s: String) -> String in return s });
