@@ -1,13 +1,16 @@
 import Foundation
 import Capacitor
-import FacebookCore
-import FacebookLogin
+import FBSDKCoreKit
+import FBSDKLoginKit
 
 @objc(FacebookLogin)
 public class FacebookLogin: CAPPlugin {
     private let loginManager = LoginManager()
     
     private let dateFormatter = ISO8601DateFormatter()
+  
+    private var granted: [String]?;
+    private var denied: [String]?;
     
     override public func load() {
         if #available(iOS 11, *) {
@@ -27,53 +30,75 @@ public class FacebookLogin: CAPPlugin {
             call.error("Missing permissions argument")
             return;
         }
-        
-        let perm = permissions.map { ReadPermission.custom($0) }
+        // print("[CapacitorFacebook] 🙏 request permissions " + permissions.debugDescription);
         
         DispatchQueue.main.async {
-            self.loginManager.logOut()
-            self.loginManager.logIn(readPermissions: perm, viewController: self.bridge.viewController) { loginResult in
-                switch loginResult {
-                case .failed(let error):
-                    print(error)
-                    call.reject("LoginManager.logIn failed", error)
+            
+            self.loginManager.logIn(permissions: permissions, from: self.bridge.viewController, handler: { (loginResult: LoginManagerLoginResult?, error: Error?) in
+            
+                if (loginResult != nil) {
                     
-                case .cancelled:
-                    print("User cancelled login")
-                    call.success()
+                    if (loginResult?.isCancelled ?? false) {
+                    // print("[CapacitorFacebook] ❌ cancelled");
+                    call.error("cancelled");
+                    return;
+                    }
                     
-                case .success(let grantedPermissions, let declinedPermissions, let accessToken):
-                    print("Logged in")
-                    return self.getCurrentAccessToken(call)
+                    self.granted = loginResult?.grantedPermissions.map({ (s: String) -> String in return s });
+                    self.denied = loginResult?.declinedPermissions.map({ (s: String) -> String in return s });  // !! deNied not deCLined (so as to keep consistent with plugin method signature)
+                    // print("[CapacitorFacebook] 👍 granted " + self.granted.debugDescription);
+                    // print("[CapacitorFacebook] 👎 denied " + self.denied.debugDescription);
+                    
+                    self.getCurrentAccessToken(call);
+                    
+                } else {
+                    // print("[CapacitorFacebook] ❌ got error " + error.debugDescription);
+                    call.error(error.debugDescription);
                 }
-            }
+
+            });
+
         }
     }
     
     @objc func logout(_ call: CAPPluginCall) {
+      
         loginManager.logOut()
+      
+        self.granted = nil;
+        self.denied = nil;
         
         call.success()
     }
     
     private func accessTokenToJson(_ accessToken: AccessToken) -> [String: Any?] {
         return [
-            "applicationId": accessToken.appId,
-            /*declinedPermissions: accessToken.declinedPermissions,*/
+            "applicationId": accessToken.appID, // Id not ID so as to keep the same plugin signature
             "expires": dateToJS(accessToken.expirationDate),
             "lastRefresh": dateToJS(accessToken.refreshDate),
-            /*permissions: accessToken.grantedPermissions,*/
-            "token": accessToken.authenticationToken,
-            "userId": accessToken.userId
-        ]
+            "token": accessToken.tokenString,
+            "userId": accessToken.userID // Id not ID so as to keep the same plugin signature
+        ];
     }
     
-    @objc func getCurrentAccessToken(_ call: CAPPluginCall) {
-        guard let accessToken = AccessToken.current else {
-            call.success()
-            return
+  @objc func getCurrentAccessToken(_ call: CAPPluginCall) {
+    
+        var data: PluginResultData = [:];
+    
+        if (self.granted != nil) {
+          data["recentlyGrantedPermissions"] = self.granted!;
+        }
+    
+        if (self.denied != nil) {
+          data["recentlyDeniedPermissions"] = self.denied!;
+        }
+    
+        let accessToken = AccessToken.current;
+    
+        if (accessToken != nil) {
+          data["accessToken"] = self.accessTokenToJson(accessToken!);
         }
         
-        call.success([ "accessToken": accessTokenToJson(accessToken) ])
+        call.success(data);
     }
 }

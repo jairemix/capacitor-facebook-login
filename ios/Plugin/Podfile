@@ -8,12 +8,14 @@ target 'Plugin' do
   # Pods for IonicRunner
   pod 'Capacitor'
 
-	pod 'FacebookCore', '~> 0.5.0'
-	pod 'FacebookLogin', '~> 0.5.0'
+  pod 'FBSDKCoreKit', '~> 4.44.1'
+  pod 'FBSDKLoginKit', '~> 4.44.1'
 end
 
 target 'PluginTests' do
   use_frameworks!
 
   pod 'Capacitor'
+  pod 'FBSDKCoreKit', '~> 4.44.1'
+  pod 'FBSDKLoginKit', '~> 4.44.1'
 end
